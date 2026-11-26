@@ -1,4 +1,4 @@
-﻿name: School System CI/CD
+name: School System CI/CD
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
           cache: npm
 
       - name: Install dependencies
@@ -38,7 +38,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.17.2
+          terraform_version: '1.17.2'
 
       - name: Check Terraform formatting
         working-directory: terraform
@@ -69,7 +69,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
           cache: npm
 
       - name: Install dependencies
@@ -77,6 +77,24 @@ jobs:
 
       - name: Build React application
         run: npm run build
+
+      - name: Diagnose GitHub OIDC claims
+        shell: bash
+        run: |
+          RESPONSE=$(curl -sS \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
+
+          TOKEN=$(echo "$RESPONSE" | jq -r '.value')
+
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Could not obtain GitHub OIDC token"
+            exit 1
+          fi
+
+          PAYLOAD=$(python3 -c 'import base64,sys; s=sys.argv[1]; s += "=" * (-len(s)%4); print(base64.urlsafe_b64decode(s).decode())' "$(echo "$TOKEN" | cut -d '.' -f2)")
+
+          echo "$PAYLOAD" | jq '{iss, aud, sub, repository, ref, environment}'
 
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
